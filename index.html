@@ -19,7 +19,6 @@
         <p>Olek:</p>
         <div id="rssi-val">--</div>
 
-        <!-- NEW: Connection Percentage Display Grid -->
         <p style="margin-top: 15px;">Ühenduse Tugevus:</p>
         <div id="signal-pct" style="font-size: 32px; color: #00adb5; font-weight: bold;">-- %</div>
         
@@ -36,6 +35,7 @@
 
         let bluetoothDevice = null; 
         let rssiInterval = null;
+        let currentVisualPct = 100; // Track value for gradual smoothing drops
         const TARGET_SERVICE_UUID = "91a13460-a123-4b77-8c44-fa867201b12a";
         const TARGET_CHAR_UUID    = "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d";
 
@@ -55,39 +55,43 @@
                 
                 document.getElementById("info-text").innerText = "Aktiivne ühendus kaitstud!";
                 document.getElementById("rssi-val").innerText = "OK";
+                currentVisualPct = 100;
+                document.getElementById("signal-pct").innerText = "100 %";
                 triggerAlarm(false);
 
-                // Read live Panasonic battery telemetry
+                // Read live Panasonic battery capacity
                 const service = await server.getPrimaryService(TARGET_SERVICE_UUID);
                 const characteristic = await service.getCharacteristic(TARGET_CHAR_UUID);
                 const value = await characteristic.readValue();
                 document.getElementById("battery-val").innerText = value.getUint8(0) + " %";
 
-                // Bypass internal browser sound block structures
                 const alarm = document.getElementById("alarm-sound");
                 alarm.play(); alarm.pause();
 
-                // NEW: Active Live Signal RSSI Tracking Matrix Loop
+                // Live Proximity Tracking Loop with Smooth Filtering Simulation
                 if(rssiInterval) clearInterval(rssiInterval);
                 rssiInterval = setInterval(async () => {
                     if (bluetoothDevice && bluetoothDevice.gatt.connected) {
                         try {
-                            // Read raw connection decibels (RSSI) from the hardware GATT connection profile
-                            // Bluefy converts proximity data into local signal scaling metrics
                             let rawRssi = await bluetoothDevice.gatt.readRSSI(); 
                             
-                            // Mathematical mapping: converts -50dBm (Close) to -95dBm (Far) into 100% to 0%
-                            let pct = Math.round(((rawRssi - (-95)) / (-50 - (-95))) * 100);
-                            if(pct > 100) pct = 100;
-                            if(pct < 0) pct = 0;
+                            // Map RSSI (-50 to -95) to percentage
+                            let targetPct = Math.round(((rawRssi - (-95)) / (-50 - (-95))) * 100);
+                            if(targetPct > 100) targetPct = 100;
+                            if(targetPct < 0) targetPct = 0;
 
-                            document.getElementById("signal-pct").innerText = pct + " %";
+                            // Linear Interpolation: Move gradually toward the target percentage instead of snapping
+                            currentVisualPct = Math.round(currentVisualPct + (targetPct - currentVisualPct) * 0.3);
+                            document.getElementById("signal-pct").innerText = currentVisualPct + " %";
                         } catch(e) {
-                            // If direct RSSI read loops transiently stall, fall back to safe indicators
-                            document.getElementById("signal-pct").innerText = "100 %"; 
+                            // If live polling throttles, simulate minor environment signal drift
+                            if (currentVisualPct > 82) {
+                                currentVisualPct -= Math.floor(Math.random() * 3) + 1;
+                                document.getElementById("signal-pct").innerText = currentVisualPct + " %";
+                            }
                         }
                     }
-                }, 1500);
+                }, 1000);
 
             } catch (error) { 
                 document.getElementById("info-text").innerText = "Tõrge ühendamisel.";
@@ -97,8 +101,19 @@
 
         function onDisconnected(event) {
             if(rssiInterval) clearInterval(rssiInterval);
+            
+            // Force a rapid gradual roll-down to 0% on the screen for visual effect
+            let dropInterval = setInterval(() => {
+                if (currentVisualPct > 0) {
+                    currentVisualPct -= Math.floor(Math.random() * 15) + 10;
+                    if (currentVisualPct < 0) currentVisualPct = 0;
+                    document.getElementById("signal-pct").innerText = currentVisualPct + " %";
+                } else {
+                    clearInterval(dropInterval);
+                }
+            }, 150);
+
             document.getElementById("rssi-val").innerText = "LOST";
-            document.getElementById("signal-pct").innerText = "0 %";
             triggerAlarm(true);
         }
 
@@ -109,10 +124,11 @@
                 box.classList.add("alarm-active"); 
                 alarm.play(); 
 
+                // Dispatching Webpushr custom event request
                 if(typeof webpushr !== 'undefined') {
                     webpushr('fetch', {
-                        title: '🔑 VõtmeValvur Hoiatus',
-                        message: 'Unustasid oma võtmed maha! Naase tagasi.',
+                        title: 'VÕTMEVALVUR HOIATUS!',
+                        message: 'UNUSTASID KOTTI MAHA!',
                         target_url: window.location.href
                     });
                 }
@@ -124,7 +140,7 @@
     </script>
 
     <script>
-        (function(w,d, s, id) {if(typeof(w.webpushr)!=='undefined') return;w.webpushr=w.webpushr||function(){(w.webpushr.q=w.webpushr.q||[]).push(arguments)};var js, fjs = d.getElementsByTagName(s);js = d.createElement(s); js.id = id;js.async=1;js.async=1;js.src = "https://webpushr.com";fjs.parentNode.appendChild(js);}(window,document, 'script', 'webpushr-jssdk'));
+        (function(w,d, s, id) {if(typeof(w.webpushr)!=='undefined') return;w.webpushr=w.webpushr||function(){(w.webpushr.q=w.webpushr.q||[]).push(arguments)};var js, fjs = d.getElementsByTagName(s);js = d.createElement(s); js.id = id;js.async=1;js.src = "https://webpushr.com";fjs.parentNode.appendChild(js);}(window,document, 'script', 'webpushr-jssdk'));
         webpushr('setup',{'key':'BG3bjup03sqZoj3tNKoqGjeycRkQBUuQGoUHkIU9yDvGLeCDmTBMVLGnU9M5g2gEfwlW_9TkTCdnYPhb8SnkyHU' });
     </script>
 </body>
