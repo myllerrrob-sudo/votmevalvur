@@ -27,42 +27,75 @@
     <audio id="alarm-sound" src="https://google.com" loop></audio>
 
     <script>
+        // CONFIGURATION: Ensure your single key from the Webpushr SDK screen is pasted here
+        const WEBPUSHR_KEY_ID = "BG3bjup03sqZoj3tNKoqGjeycRkQBUuQGoUHkIU9yDvGLeCDmTBMVLGnU9M5g2gEfwlW_9TkTCdnYPhb8SnkyHU"; 
+
         let trackingInterval = null;
+        let bluetoothDevice = null; 
         const TARGET_SERVICE_UUID = "91a13460-a123-4b77-8c44-fa867201b12a";
         const TARGET_CHAR_UUID    = "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d";
 
         async function connectTracker() {
             try {
-                document.getElementById("info-text").innerText = "Otsib...";
-                const device = await navigator.bluetooth.requestDevice({
+                document.getElementById("info-text").innerText = "Otsib Bluetooth seadet...";
+                
+                bluetoothDevice = await navigator.bluetooth.requestDevice({
                     filters: [{ name: "VOTME_VALVUR_PRO" }],
                     optionalServices: [TARGET_SERVICE_UUID]
                 });
-                const server = await device.gatt.connect();
-                document.getElementById("info-text").innerText = "Ühendatud!";
+
+                // Attach disconnect observer tracking loop
+                bluetoothDevice.addEventListener('gattserverdisconnected', onDisconnected);
                 
+                await attemptConnection();
+
+            } catch (error) { 
+                document.getElementById("info-text").innerText = "Tõrge ühendamisel.";
+                console.log(error); 
+            }
+        }
+
+        async function attemptConnection() {
+            try {
+                if (!bluetoothDevice) return;
+                
+                document.getElementById("info-text").innerText = "Ühendatakse...";
+                const server = await bluetoothDevice.gatt.connect();
+                document.getElementById("info-text").innerText = "Ühendatud!";
+                document.getElementById("rssi-val").innerText = "OK";
+                triggerAlarm(false);
+
+                // Read live Panasonic battery telemetry
                 const service = await server.getPrimaryService(TARGET_SERVICE_UUID);
                 const characteristic = await service.getCharacteristic(TARGET_CHAR_UUID);
                 const value = await characteristic.readValue();
                 document.getElementById("battery-val").innerText = value.getUint8(0) + " %";
 
+                // Bypass internal browser sound block structures
                 const alarm = document.getElementById("alarm-sound");
-                alarm.play(); alarm.pause(); 
+                alarm.play(); alarm.pause();
 
-                if(trackingInterval) clearInterval(trackingInterval);
-                trackingInterval = setInterval(() => {
-                    if (device.gatt.connected) {
-                        document.getElementById("rssi-val").innerText = "OK";
-                        triggerAlarm(false);
-                    } else {
-                        document.getElementById("rssi-val").innerText = "LOST";
-                        triggerAlarm(true);
-                    }
-                }, 2500);
-            } catch (error) { 
-                document.getElementById("info-text").innerText = "Tõrge ühendamisel.";
-                console.log(error); 
+            } catch (err) {
+                console.log("Xiao is currently sleeping, retrying shortly...", err);
             }
+        }
+
+        // Automatic Reconnect Routine handling the Deep Sleep windows
+        function onDisconnected(event) {
+            document.getElementById("rssi-val").innerText = "WAIT";
+            document.getElementById("info-text").innerText = "Ootab majaka ärkamist...";
+            
+            // Allow a 5-second window for the Xiao to complete its 4-second sleep cycle
+            setTimeout(async () => {
+                if (bluetoothDevice && !bluetoothDevice.gatt.connected) {
+                    // True disconnect confirmed! Device is out of range.
+                    document.getElementById("rssi-val").innerText = "LOST";
+                    triggerAlarm(true);
+                    
+                    // Keep silently scanning to auto-reset if user walks back near keys
+                    await attemptConnection();
+                }
+            }, 5000); 
         }
 
         function triggerAlarm(active) {
@@ -72,7 +105,7 @@
                 box.classList.add("alarm-active"); 
                 alarm.play(); 
 
-                // Automatic background alert request pushed out through Webpushr custom key framework
+                // Execute background cloud broadcast packet via Webpushr
                 if(typeof webpushr !== 'undefined') {
                     webpushr('fetch', {
                         title: '🔑 VõtmeValvur Hoiatus',
@@ -80,7 +113,6 @@
                         target_url: window.location.href
                     });
                 }
-
             } else { 
                 box.classList.remove("alarm-active"); 
                 alarm.pause(); 
@@ -90,7 +122,7 @@
 
     <!-- Start Webpushr Native Tracking SDK Integration --> 
     <script>
-        (function(w,d, s, id) {if(typeof(w.webpushr)!=='undefined') return;w.webpushr=w.webpushr||function(){(w.webpushr.q=w.webpushr.q||[]).push(arguments)};var js, fjs = d.getElementsByTagName(s)[0];js = d.createElement(s); js.id = id;js.async=1;js.src = "https://cdn.webpushr.com/app.min.js";fjs.parentNode.appendChild(js);}(window,document, 'script', 'webpushr-jssdk'));
+        (function(w,d, s, id) {if(typeof(w.webpushr)!=='undefined') return;w.webpushr=w.webpushr||function(){(w.webpushr.q=w.webpushr.q||[]).push(arguments)};var js, fjs = d.getElementsByTagName(s)[0];js = d.createElement(s); js.id = id;js.async=1;js.src = "https://webpushr.com";fjs.parentNode.appendChild(js);}(window,document, 'script', 'webpushr-jssdk'));
         webpushr('setup',{'key':'BG3bjup03sqZoj3tNKoqGjeycRkQBUuQGoUHkIU9yDvGLeCDmTBMVLGnU9M5g2gEfwlW_9TkTCdnYPhb8SnkyHU' });
     </script>
     <!-- End Webpushr Integration -->
