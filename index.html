@@ -35,7 +35,7 @@
 
         let bluetoothDevice = null; 
         let rssiInterval = null;
-        let currentVisualPct = 100; // Track value for gradual smoothing drops
+        let currentVisualPct = 100; 
         const TARGET_SERVICE_UUID = "91a13460-a123-4b77-8c44-fa867201b12a";
         const TARGET_CHAR_UUID    = "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d";
 
@@ -59,7 +59,6 @@
                 document.getElementById("signal-pct").innerText = "100 %";
                 triggerAlarm(false);
 
-                // Read live Panasonic battery capacity
                 const service = await server.getPrimaryService(TARGET_SERVICE_UUID);
                 const characteristic = await service.getCharacteristic(TARGET_CHAR_UUID);
                 const value = await characteristic.readValue();
@@ -68,23 +67,19 @@
                 const alarm = document.getElementById("alarm-sound");
                 alarm.play(); alarm.pause();
 
-                // Live Proximity Tracking Loop with Smooth Filtering Simulation
                 if(rssiInterval) clearInterval(rssiInterval);
                 rssiInterval = setInterval(async () => {
                     if (bluetoothDevice && bluetoothDevice.gatt.connected) {
                         try {
                             let rawRssi = await bluetoothDevice.gatt.readRSSI(); 
                             
-                            // Map RSSI (-50 to -95) to percentage
                             let targetPct = Math.round(((rawRssi - (-95)) / (-50 - (-95))) * 100);
                             if(targetPct > 100) targetPct = 100;
                             if(targetPct < 0) targetPct = 0;
 
-                            // Linear Interpolation: Move gradually toward the target percentage instead of snapping
                             currentVisualPct = Math.round(currentVisualPct + (targetPct - currentVisualPct) * 0.3);
                             document.getElementById("signal-pct").innerText = currentVisualPct + " %";
                         } catch(e) {
-                            // If live polling throttles, simulate minor environment signal drift
                             if (currentVisualPct > 82) {
                                 currentVisualPct -= Math.floor(Math.random() * 3) + 1;
                                 document.getElementById("signal-pct").innerText = currentVisualPct + " %";
@@ -102,7 +97,6 @@
         function onDisconnected(event) {
             if(rssiInterval) clearInterval(rssiInterval);
             
-            // Force a rapid gradual roll-down to 0% on the screen for visual effect
             let dropInterval = setInterval(() => {
                 if (currentVisualPct > 0) {
                     currentVisualPct -= Math.floor(Math.random() * 15) + 10;
@@ -124,11 +118,10 @@
                 box.classList.add("alarm-active"); 
                 alarm.play(); 
 
-                // Dispatching Webpushr custom event request
                 if(typeof webpushr !== 'undefined') {
                     webpushr('fetch', {
-                        title: 'VÕTMEVALVUR HOIATUS!',
-                        message: 'UNUSTASID KOTTI MAHA!',
+                        title: '🔑 VõtmeValvur Hoiatus',
+                        message: 'Unustasid oma võtmed maha! Naase tagasi.',
                         target_url: window.location.href
                     });
                 }
