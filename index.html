@@ -24,7 +24,6 @@
     </div>
     <button class="btn" onclick="connectTracker()">Sünkroniseeri Võtmehoidja</button>
     
-    <!-- Working digital watch alarm sound link -->
     <audio id="alarm-sound" src="https://google.com" loop></audio>
 
     <script>
@@ -77,7 +76,6 @@
                 box.classList.add("alarm-active"); 
                 alarm.play(); 
 
-                // Dispatches background cloud notification push directly to iPhone
                 fetch('https://webpushr.com', {
                     method: 'POST',
                     headers: {
