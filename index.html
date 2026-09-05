@@ -27,10 +27,6 @@
     <audio id="alarm-sound" src="https://google.com" loop></audio>
 
     <script>
-        // CONFIGURATION: Paste your custom keys from Webpushr right here
-        const WEBPUSHR_KEY_ID = "YOUR_WEBPUSHR_KEY_ID_HERE"; 
-        const WEBPUSHR_AUTH_TOKEN = "YOUR_WEBPUSHR_AUTH_TOKEN_HERE"; 
-
         let trackingInterval = null;
         const TARGET_SERVICE_UUID = "91a13460-a123-4b77-8c44-fa867201b12a";
         const TARGET_CHAR_UUID    = "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d";
@@ -76,19 +72,14 @@
                 box.classList.add("alarm-active"); 
                 alarm.play(); 
 
-                fetch('https://webpushr.com', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'webpushrKey': WEBPUSHR_KEY_ID,
-                        'webpushrAuthToken': WEBPUSHR_AUTH_TOKEN
-                    },
-                    body: JSON.stringify({
-                        "title": "🔑 VõtmeValvur Hoiatus",
-                        "message": "Unustasid oma võtmed maha! Naase tagasi.",
-                        "target_url": window.location.href
-                    })
-                }).catch(err => console.log("Push failed:", err));
+                // Automatic background alert request pushed out through Webpushr custom key framework
+                if(typeof webpushr !== 'undefined') {
+                    webpushr('fetch', {
+                        title: '🔑 VõtmeValvur Hoiatus',
+                        message: 'Unustasid oma võtmed maha! Naase tagasi.',
+                        target_url: window.location.href
+                    });
+                }
 
             } else { 
                 box.classList.remove("alarm-active"); 
@@ -96,5 +87,13 @@
             }
         }
     </script>
+
+    <!-- Start Webpushr Native Tracking SDK Integration --> 
+    <script>
+        (function(w,d, s, id) {if(typeof(w.webpushr)!=='undefined') return;w.webpushr=w.webpushr||function(){(w.webpushr.q=w.webpushr.q||[]).push(arguments)};var js, fjs = d.getElementsByTagName(s)[0];js = d.createElement(s); js.id = id;js.async=1;js.src = "https://cdn.webpushr.com/app.min.js";fjs.parentNode.appendChild(js);}(window,document, 'script', 'webpushr-jssdk'));
+        webpushr('setup',{'key':'BG3bjup03sqZoj3tNKoqGjeycRkQBUuQGoUHkIU9yDvGLeCDmTBMVLGnU9M5g2gEfwlW_9TkTCdnYPhb8SnkyHU' });
+    </script>
+    <!-- End Webpushr Integration -->
+
 </body>
 </html>
