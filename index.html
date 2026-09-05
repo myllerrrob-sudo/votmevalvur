@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VõtmeValvur Pro Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; background: #121212; color: white; padding: 20px; }
+        .btn { background: #00adb5; border: none; color: white; padding: 15px 30px; font-size: 18px; border-radius: 8px; cursor: pointer; margin-top: 20px; }
+        .status-box { margin: 30px auto; padding: 20px; width: 80%; max-width: 400px; border-radius: 12px; background: #222831; border: 2px solid #393e46; }
+        #rssi-val { font-size: 48px; font-weight: bold; color: #00adb5; }
+        .alarm-active { background: #ff2e63 !important; animation: blink 1s infinite; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+    </style>
+</head>
+<body>
+    <h1>🔑 VõtmeValvur Pro</h1>
+    <div class="status-box" id="display-box">
+        <p>Signaali:</p>
+        <div id="rssi-val">--</div>
+        <p>Aku Tase:</p>
+        <div id="battery-val" style="font-size: 24px; color: #a2ffb6; font-weight: bold;">-- %</div>
+        <p id="info-text">Ühendamata</p>
+    </div>
+    <button class="btn" onclick="connectTracker()">Sünkroniseeri Võtmehoidja</button>
+    
+    <!-- Working digital watch alarm sound link -->
+    <audio id="alarm-sound" src="https://google.com" loop></audio>
+
+    <script>
+        // CONFIGURATION: Paste your custom keys from Webpushr right here
+        const WEBPUSHR_KEY_ID = "YOUR_WEBPUSHR_KEY_ID_HERE"; 
+        const WEBPUSHR_AUTH_TOKEN = "YOUR_WEBPUSHR_AUTH_TOKEN_HERE"; 
+
+        let trackingInterval = null;
+        const TARGET_SERVICE_UUID = "91a13460-a123-4b77-8c44-fa867201b12a";
+        const TARGET_CHAR_UUID    = "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d";
+
+        async function connectTracker() {
+            try {
+                document.getElementById("info-text").innerText = "Otsib...";
+                const device = await navigator.bluetooth.requestDevice({
+                    filters: [{ name: "VOTME_VALVUR_PRO" }],
+                    optionalServices: [TARGET_SERVICE_UUID]
+                });
+                const server = await device.gatt.connect();
+                document.getElementById("info-text").innerText = "Ühendatud!";
+                
+                const service = await server.getPrimaryService(TARGET_SERVICE_UUID);
+                const characteristic = await service.getCharacteristic(TARGET_CHAR_UUID);
+                const value = await characteristic.readValue();
+                document.getElementById("battery-val").innerText = value.getUint8(0) + " %";
+
+                const alarm = document.getElementById("alarm-sound");
+                alarm.play(); alarm.pause(); 
+
+                if(trackingInterval) clearInterval(trackingInterval);
+                trackingInterval = setInterval(() => {
+                    if (device.gatt.connected) {
+                        document.getElementById("rssi-val").innerText = "OK";
+                        triggerAlarm(false);
+                    } else {
+                        document.getElementById("rssi-val").innerText = "LOST";
+                        triggerAlarm(true);
+                    }
+                }, 2500);
+            } catch (error) { 
+                document.getElementById("info-text").innerText = "Tõrge ühendamisel.";
+                console.log(error); 
+            }
+        }
+
+        function triggerAlarm(active) {
+            const box = document.getElementById("display-box");
+            const alarm = document.getElementById("alarm-sound");
+            if (active) { 
+                box.classList.add("alarm-active"); 
+                alarm.play(); 
+
+                // Dispatches background cloud notification push directly to iPhone
+                fetch('https://webpushr.com', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'webpushrKey': WEBPUSHR_KEY_ID,
+                        'webpushrAuthToken': WEBPUSHR_AUTH_TOKEN
+                    },
+                    body: JSON.stringify({
+                        "title": "🔑 VõtmeValvur Hoiatus",
+                        "message": "Unustasid oma võtmed maha! Naase tagasi.",
+                        "target_url": window.location.href
+                    })
+                }).catch(err => console.log("Push failed:", err));
+
+            } else { 
+                box.classList.remove("alarm-active"); 
+                alarm.pause(); 
+            }
+        }
+    </script>
+</body>
+</html>
