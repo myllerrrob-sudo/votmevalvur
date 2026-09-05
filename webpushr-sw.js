@@ -1,1 +1,1 @@
-
+importScripts('https://webpushr.com');
